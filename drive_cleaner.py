@@ -29,9 +29,9 @@ from googleapiclient.errors import HttpError
 # CONFIGURATION
 # ---------------------------------------------------------------------------
 # Set ROOT_FOLDER_ID to one of:
-#   'root'                  → scan all of My Drive (personal drive)
-#   '0AGdvD8JVt...'         → scan a full Shared Drive
-#   '1FAYh9uNqbllIcjG...'   → scan a specific folder (any depth)
+#   'root'                → scan all of My Drive (personal drive)
+#   '0AGdvD8JVt...'       → scan a full Shared Drive
+#   '1FAYh9uNqbllIcjG...' → scan a specific folder (any depth)
 ROOT_FOLDER_ID   = 'YOUR_FOLDER_ID'
 SCOPES           = ['https://www.googleapis.com/auth/drive']
 DB_NAME          = 'database.db'
@@ -167,7 +167,7 @@ def detect_target(service, folder_id: str) -> dict:
             'label':     folder['name'],
             'folder_id': folder_id,
             'list_kwargs': dict(
-                corpora='user',
+                corpora='allDrives',
                 includeItemsFromAllDrives=True,
                 supportsAllDrives=True,
             ),
@@ -177,8 +177,8 @@ def detect_target(service, folder_id: str) -> dict:
             f"Could not resolve ROOT_FOLDER_ID '{folder_id}'.\n"
             f"  Valid values:\n"
             f"    'root'                      → all of My Drive\n"
-            f"    '0AGdvD8JVtDj9Uk9PVA'      → a Shared Drive ID\n"
-            f"    '1FAYh9uNqbllIcjNBIixG...' → a specific folder ID\n"
+            f"    '0AGdvD8JVt...'      → a Shared Drive ID\n"
+            f"    '1FAYh9uNqbllIcjG...' → a specific folder ID\n"
             f"  Ensure your account has at least Viewer access to it.\n"
             f"  API error: {e}"
         ) from e
@@ -257,6 +257,7 @@ def collect_all_folder_ids(service, root_id: str) -> list[str]:
                     pageSize=PAGE_SIZE,
                     fields='nextPageToken, files(id)',
                     pageToken=page_token,
+                    corpora='allDrives',
                     includeItemsFromAllDrives=True,
                     supportsAllDrives=True,
                 )
