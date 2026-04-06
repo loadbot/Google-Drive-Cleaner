@@ -22,8 +22,8 @@ Set `ROOT_FOLDER_ID` in the script to one of:
 | Value | What it scans |
 |---|---|
 | `'root'` | All of My Drive (personal drive) |
-| `'0AGdvD8JVtDj9Uk9PVA'` | An entire Shared Drive |
-| `'1FAYh9uNqbllIcjNBIixG...'` | A specific folder and all its subfolders |
+| `'0AGdvD8JVt...'` | An entire Shared Drive |
+| `'1FAYh9uNqbllIcjG...'` | A specific folder and all its subfolders |
 
 The script detects which type it is automatically — no other config changes needed.
 
@@ -39,6 +39,8 @@ Python 3.10 or higher.
 
 ```bash
 pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+or
+pip install -r requirements.txt
 ```
 
 ### Google Cloud Setup
