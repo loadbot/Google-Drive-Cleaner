@@ -38,7 +38,7 @@ Python 3.10 or higher.
 ### Dependencies
 
 ```bash
-pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+pip install httplib2 google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
 or
 pip install -r requirements.txt
 ```
