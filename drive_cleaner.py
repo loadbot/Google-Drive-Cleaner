@@ -29,10 +29,10 @@ from googleapiclient.errors import HttpError
 # CONFIGURATION
 # ---------------------------------------------------------------------------
 # Set ROOT_FOLDER_ID to one of:
-#   'root'                → scan all of My Drive (personal drive)
-#   '0AGdvD8JVt...'       → scan a full Shared Drive
-#   '1FAYh9uNqbllIcjG...' → scan a specific folder (any depth)
-ROOT_FOLDER_ID   = 'YOUR_FOLDER_ID'
+#   'root'                 → scan all of My Drive (personal drive)
+#   '0AGdvD8JVt...'        → scan a full Shared Drive
+#   '1FAYh9uNqbllIcjG...'  → scan a specific folder (any depth)
+ROOT_FOLDER_ID   = 'root'
 SCOPES           = ['https://www.googleapis.com/auth/drive']
 DB_NAME          = 'database.db'
 LOG_FILE         = 'logs.log'
@@ -106,7 +106,7 @@ def get_service():
 
 
 # ---------------------------------------------------------------------------
-# AUTO-DETECT: Shared Drive or regular folder?
+# AUTO-DETECT: Shared Drive, My Drive, or regular folder?
 # ---------------------------------------------------------------------------
 def detect_target(service, folder_id: str) -> dict:
     """
@@ -176,9 +176,9 @@ def detect_target(service, folder_id: str) -> dict:
         raise RuntimeError(
             f"Could not resolve ROOT_FOLDER_ID '{folder_id}'.\n"
             f"  Valid values:\n"
-            f"    'root'                      → all of My Drive\n"
-            f"    '0AGdvD8JVt...'      → a Shared Drive ID\n"
-            f"    '1FAYh9uNqbllIcjG...' → a specific folder ID\n"
+            f"    'root'                       → all of My Drive\n"
+            f"    '0AGdvD8JVt...'              → a Shared Drive ID\n"
+            f"    '1FAYh9uNqbllIcjG...'        → a specific folder ID\n"
             f"  Ensure your account has at least Viewer access to it.\n"
             f"  API error: {e}"
         ) from e
@@ -287,8 +287,8 @@ def fetch_and_store_files(service, conn: sqlite3.Connection, target: dict) -> No
     Index all files into SQLite.
 
     - Shared Drive: single paginated query scoped by driveId (fast, one pass)
-    - Regular folder: BFS walk to collect all folder IDs, then query files
-                      in batches of FOLDER_BATCH_SIZE folder IDs at a time
+    - My Drive / folder: BFS walk to collect all folder IDs, then query files
+                         in batches of FOLDER_BATCH_SIZE folder IDs at a time
     """
     if target['type'] == 'shared_drive':
         _index_shared_drive(service, conn, target)
@@ -429,25 +429,41 @@ def _api_call_with_retry(request, max_attempts: int = 5) -> dict:
 # ---------------------------------------------------------------------------
 def find_duplicates(conn: sqlite3.Connection) -> list[tuple]:
     """
-    Find duplicates, keeping the earliest-created file per (parent, md5) group.
-    Returns list of (id, name, parent, size) tuples to be trashed.
+    Find duplicates, keeping the newest file per group. Returns list of
+    (id, name, parent, size) tuples to be trashed.
+
+    A duplicate group requires ALL FOUR to match:
+      - Same parent folder
+      - Same filename     ← different extensions = different files, never flagged
+      - Same MD5 checksum ← same content
+      - Same size         ← explicit safety net; also protects subtitle files
+                            (.srt/.sub) which share a folder but differ in size
+
+    Zero-byte files are excluded entirely.
     """
     cur = conn.cursor()
     query = '''
         SELECT id, name, parent, size
         FROM files
-        WHERE (parent, md5) IN (
-            SELECT parent, md5
+        WHERE size > 0
+          AND (parent, name, md5, size) IN (
+            SELECT parent, name, md5, size
             FROM files
-            GROUP BY parent, md5
+            WHERE size > 0
+            GROUP BY parent, name, md5, size
             HAVING COUNT(*) > 1
         )
         AND id NOT IN (
+            -- Keep the newest file in each duplicate group
             SELECT id FROM files f1
-            WHERE created_time = (
-                SELECT MIN(created_time)
+            WHERE size > 0
+              AND created_time = (
+                SELECT MAX(created_time)
                 FROM files f2
-                WHERE f2.parent = f1.parent AND f2.md5 = f1.md5
+                WHERE f2.parent = f1.parent
+                  AND f2.name   = f1.name
+                  AND f2.md5    = f1.md5
+                  AND f2.size   = f1.size
             )
         )
         ORDER BY parent, name
@@ -561,7 +577,7 @@ def main() -> None:
 
     service = get_service()
 
-    # Auto-detect: Shared Drive or regular folder?
+    # Auto-detect: My Drive, Shared Drive, or regular folder?
     target = detect_target(service, ROOT_FOLDER_ID)
 
     conn = open_db(reindex=args.reindex)
